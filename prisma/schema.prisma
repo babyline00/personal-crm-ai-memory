@@ -1,0 +1,79 @@
+// Personal CRM with AI Memory — Prisma schema
+// SQLite is used as the local-first store. The DATABASE_URL env var points
+// at an absolute path under ./db/custom.db (see .env / package.json db: scripts).
+//
+// Notes:
+//  - `tags` is stored as a JSON string (SQLite has no native array type).
+//  - `citations` on ChatMessage is a JSON-stringified array of { interactionId,
+//    occurredAt, type, preview } so the chat UI can render inline citations
+//    back to the interactions that grounded an answer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  role      String?
+  birthday  DateTime?
+  notes     String?
+  tags      String   // JSON-stringified string[] (SQLite has no array type)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  interactions Interaction[]
+  followUps    FollowUpDraft[]
+}
+
+model Interaction {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  type      String   // "meeting" | "call" | "email" | "note" | "other"
+  summary   String
+  occurredAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
+}
+
+model FollowUpDraft {
+  id         String   @id @default(cuid())
+  contactId  String
+  contact    Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tonePreset String   // "casual" | "formal" | "warm"
+  content    String
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
+}
+
+model ChatSession {
+  id        String   @id @default(cuid())
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String   // "user" | "assistant" | "system"
+  content   String
+  citations String?  // JSON-stringified citation list (interactionId, occurredAt, type, preview)
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+}
